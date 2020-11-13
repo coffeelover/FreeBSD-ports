@@ -573,6 +573,12 @@
 			<size>5</size>
 		</field>
 		<field>
+			<fielddescr>Exclude unrestricted Hosts</fielddescr>
+			<fieldname>no_log_unrestricted_hosts</fieldname>
+			<description>If enabled, access from unrestricted hosts will not be logged</description>
+			<type>checkbox</type>
+		</field>
+		<field>
 			<fielddescr>Log Pages Denied by SquidGuard</fielddescr>
 			<fieldname>log_sqd</fieldname>
 			<description>Makes it possible for SquidGuard denied log to be included on Squid logs.</description>

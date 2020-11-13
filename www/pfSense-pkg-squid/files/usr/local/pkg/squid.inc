@@ -1220,6 +1220,36 @@ function squid_validate_auth($post, &$input_errors) {
 	unset($auth_method, $port, $server, $secret, $user);
 }
 
+/* Proxy Server: Log Settings configuration handler */
+Function squid_resync_logging() {
+	global $g, $config, $valid_acls;
+	if (is_array($config['installedpackages']['squid'])) {
+		$settings = $config['installedpackages']['squid']['config'][0];
+	} else {
+		$settings = array();
+	}
+
+	$log_dir = ($settings['log_dir'] ? $settings['log_dir'] : '/var/squid/logs');
+	$log_format = $settings['no_log_unrestricted_hosts'] == 'on' ? 'squid !unrestricted_hosts' : 'squid';
+
+	// Per squid docs, setting logfile_rotate to 0 is safe and causes a simple close/reopen.
+	$log_rotate = empty($settings['log_rotate']) ? 0 : $settings['log_rotate'];
+	$log_access = 'daemon:' . $logdir . '/access.log rotate=' . $log_rotate . ' ' . $log_format;
+
+	$access_log = ($settings['log_enabled'] == 'on' ? $log_access : 'none');
+	$cache_log = $logdir . '/cache.log';
+
+	$conf = <<< EOD
+access_log {$access_log}
+cache_log {$cache_log}
+cache_store_log none
+debug_options rotate={$log_rotate}
+
+EOD;
+
+	return $conf;
+}
+
 /* Proxy Server: General Settings configuration handler */
 function squid_resync_general() {
 	global $g, $config, $valid_acls;
@@ -1436,8 +1466,6 @@ function squid_resync_general() {
 		safe_mkdir($logdir, 0755);
 	}
 	squid_chown_recursive($logdir, SQUID_UID, SQUID_GID);
-	$logdir_cache = $logdir . '/cache.log';
-	$logdir_access = ($settings['log_enabled'] == 'on' ? $logdir . '/access.log' : '/dev/null');
 	$pinger_helper = ($settings['disable_pinger']) == 'on' ? 'off' : 'on';
 	$pinger_program = SQUID_LOCALBASE . "/libexec/squid/pinger";
 
@@ -1479,26 +1507,15 @@ error_default_language {$language}
 icon_directory {$icondir}
 visible_hostname {$hostname}
 cache_mgr {$email}
-access_log {$logdir_access}
-cache_log {$logdir_cache}
-cache_store_log none
 netdb_filename {$logdir}/netdb.state
 pinger_enable {$pinger_helper}
 pinger_program {$pinger_program}
 {$interception_checks}
-
-EOD;
-
-	// Per squid docs, setting logfile_rotate to 0 is safe and causes a simple close/reopen.
-	$rotate = empty($settings['log_rotate']) ? 0 : $settings['log_rotate'];
-	$conf .= "logfile_rotate {$rotate}\n";
-	$conf .= "debug_options rotate={$rotate}\n";
-	squid_install_cron(true);
-
-	$conf .= <<< EOD
 shutdown_lifetime 3 seconds
 
 EOD;
+	
+	squid_install_cron(true);
 
 	if ($settings['allow_interface'] == 'on') {
 		$src = '';
@@ -2244,7 +2261,8 @@ function squid_resync($via_rpc = "no") {
 	$conf .= squid_resync_traffic() . "\n";
 	$conf .= squid_resync_reverse() . "\n";
 	$conf .= squid_resync_auth() . "\n";
-	$conf .= squid_resync_antivirus();
+	$conf .= squid_resync_antivirus() . "\n";
+	$conf .= squid_resync_accesslog();
 	squid_resync_users();
 	squid_write_rcfile();
 
